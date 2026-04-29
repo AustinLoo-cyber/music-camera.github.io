@@ -1,0 +1,2088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Music Portrait — Your Face in Sound</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<!-- MediaPipe — loaded as classic scripts so globals are available -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+<style>
+@font-face {
+  font-family: 'Bookmania';
+  src: url('Bookmania Font/Demo_Fonts/Fontspring-DEMO-bookmania-regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Bookmania';
+  src: url('Bookmania Font/Demo_Fonts/Fontspring-DEMO-bookmania-bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+}
+
+:root {
+  --bg: #0a0a0c;
+  --surface: #111116;
+  --surface2: #18181f;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0f0f5;
+  --muted: rgba(240,240,245,0.45);
+  --accent: #c8f060;
+  --accent2: #60d4f0;
+  --spotify: #1DB954;
+  --youtube: #FF0000;
+  --danger: #ff5a5a;
+  --radius: 12px;
+  --font: 'Syne', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* ---- LAYOUT ---- */
+.app { position: relative; z-index: 1; display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* ---- HEADER ---- */
+.logo {
+  padding: 28px 24px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.logo-icon svg { width: 18px; height: 18px; }
+
+.logo h1 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.logo p {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-weight: 300;
+  padding-left: 42px;
+}
+
+/* ---- SECTIONS ---- */
+.section {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ---- PILLS & BADGES ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  background: var(--surface2);
+}
+
+.badge.ok { border-color: var(--accent); color: var(--accent); background: rgba(200,240,96,0.08); }
+.badge.live { border-color: #ff5a5a; color: #ff5a5a; background: rgba(255,90,90,0.08); animation: pulse 2s infinite; }
+.badge.spotify-badge { border-color: var(--spotify); color: var(--spotify); background: rgba(29,185,84,0.08); }
+.badge.yt-badge { border-color: var(--youtube); color: var(--youtube); background: rgba(255,0,0,0.08); }
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* ---- BUTTONS ---- */
+button {
+  font-family: var(--font);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--accent); color: #0a0a0c; border-color: var(--accent); font-weight: 700; }
+.btn.primary:hover { background: #d4f570; }
+.btn.spotify { background: var(--spotify); color: #fff; border-color: var(--spotify); font-weight: 700; }
+.btn.spotify:hover { background: #1fcc5e; }
+.btn.youtube { background: var(--youtube); color: #fff; border-color: var(--youtube); font-weight: 700; }
+.btn.youtube:hover { background: #e60000; }
+.btn.danger { background: rgba(255,90,90,0.15); color: var(--danger); border-color: var(--danger); }
+.btn.danger:hover { background: rgba(255,90,90,0.25); }
+.btn.full { width: 100%; }
+.btn.sm { padding: 6px 12px; font-size: 12px; }
+
+/* ---- INPUTS ---- */
+input[type="text"], input[type="password"], textarea, select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 300;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 8px;
+}
+
+input:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+/* ---- TABS ---- */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  background: var(--surface2);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  transition: all 0.15s;
+}
+
+.tab-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+/* ---- CONTROLS ---- */
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.control-row label {
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 70px;
+  font-family: var(--mono);
+}
+
+.control-row input[type="range"] {
+  flex: 1;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border2);
+  outline: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.control-row input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.control-row .val {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--accent);
+  min-width: 24px;
+  text-align: right;
+}
+
+.toggle-group {
+  display: flex;
+  background: var(--surface2);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.toggle-btn.active { background: var(--accent); color: #0a0a0c; }
+
+/* ---- STATUS MESSAGES ---- */
+.status-msg {
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 300;
+  color: var(--muted);
+  padding: 6px 0;
+  min-height: 24px;
+}
+
+.status-msg.ok { color: var(--accent); }
+.status-msg.err { color: var(--danger); }
+
+/* ---- LEGEND ---- */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ---- TRACK LIST PREVIEW ---- */
+.track-preview {
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--surface2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  padding: 8px;
+  margin-top: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+.track-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.track-item:last-child { border-bottom: none; }
+
+.track-color { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.track-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.track-artist { color: var(--muted); font-size: 10px; flex-shrink: 0; }
+
+/* ---- HINT BOX ---- */
+.hint-box {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  font-family: var(--mono);
+  font-weight: 300;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.hint-box strong { color: var(--text); font-weight: 400; }
+.hint-box a { color: var(--accent2); text-decoration: none; }
+.hint-box a:hover { text-decoration: underline; }
+.hint-box code {
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* ---- STEPS ---- */
+.step {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: flex-start;
+}
+
+.step-num {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.step p { font-size: 12px; font-family: var(--mono); font-weight: 300; color: var(--muted); line-height: 1.6; }
+.step p strong { color: var(--text); font-weight: 400; }
+.step p a { color: var(--accent2); text-decoration: none; }
+
+/* ---- MAIN CANVAS AREA ---- */
+.cam-header {
+  padding: 20px 24px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.cam-header h2 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: 1;
+}
+
+.stage-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  position: relative;
+}
+
+.stage {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #0d0d10;
+  border: 1px solid var(--border2);
+  max-width: 640px;
+  width: 100%;
+  aspect-ratio: 4/3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  text-align: center;
+  padding: 40px;
+}
+
+.stage-placeholder .big-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+}
+
+.stage-placeholder h3 { font-size: 18px; font-weight: 700; color: var(--muted); }
+.stage-placeholder p { font-size: 13px; color: rgba(240,240,245,0.3); font-family: var(--mono); max-width: 280px; line-height: 1.5; }
+
+video#vid { display: none; }
+canvas#live {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* ---- TOOLTIP ---- */
+.tooltip {
+  position: absolute;
+  background: rgba(10,10,12,0.92);
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 20;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+/* ---- FOOTER STATUS BAR ---- */
+.status-bar {
+  padding: 10px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.status-bar .fps { color: var(--accent); font-weight: 400; }
+
+/* ---- SCROLLBAR ---- */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ---- EXPAND / FULLSCREEN ---- */
+.icon-btn {
+  width: 30px; height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.icon-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); border-color: rgba(255,255,255,0.2); }
+.icon-btn.active { background: var(--accent); color: #0a0a0c; border-color: var(--accent); }
+
+/* expanded panel: sidebar collapses, stage gets more room */
+.app.expanded .sidebar { width: 0; min-width: 0; overflow: hidden; border: none; }
+.app.expanded { grid-template-columns: 0 1fr; }
+
+/* true fullscreen overlay */
+.app.fullscreen-mode {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  grid-template-columns: 0 1fr !important;
+}
+.app.fullscreen-mode .sidebar { width: 0; min-width: 0; overflow: hidden; border: none; }
+.app.fullscreen-mode .stage { max-width: 100%; border-radius: 0; border: none; }
+.app.fullscreen-mode .stage-wrap { padding: 0; }
+.app.fullscreen-mode .cam-header { display: flex; }
+.app.fullscreen-mode .status-bar { display: none; }
+
+/* sidebar peek button shown when sidebar is collapsed */
+.peek-btn {
+  position: fixed;
+  left: 12px; top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+  display: none;
+  width: 28px; height: 60px;
+  border-radius: 0 8px 8px 0;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-left: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.peek-btn:hover { color: var(--text); }
+.app.expanded .peek-btn,
+.app.fullscreen-mode .peek-btn { display: flex; }
+
+/* smooth sidebar transition */
+.sidebar { transition: width 0.25s ease, min-width 0.25s ease; }
+.app { transition: grid-template-columns 0.25s ease; }
+
+/* ---- ANIMATIONS ---- */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: fadeIn 0.3s ease forwards; }
+
+/* ---- RESPONSIVE ---- */
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { max-height: 55vh; }
+}
+
+/* ---- MOBILE FULLSCREEN (CSS fallback for iOS Safari) ---- */
+body.mobile-fullscreen {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+body.mobile-fullscreen .app {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: var(--app-height, 100vh) !important;
+  z-index: 9999 !important;
+  grid-template-columns: 0 1fr !important;
+}
+body.mobile-fullscreen .sidebar { width: 0; min-width: 0; overflow: hidden; border: none; }
+body.mobile-fullscreen .stage { max-width: 100% !important; border-radius: 0; border: none; }
+body.mobile-fullscreen .stage-wrap { padding: 0; flex: 1; }
+body.mobile-fullscreen .main { height: var(--app-height, 100vh); overflow: hidden; }
+body.mobile-fullscreen .status-bar { display: none; }
+body.mobile-fullscreen .peek-btn { display: flex; }
+body.mobile-fullscreen .cam-header { flex-shrink: 0; }
+
+/* ---- ZOOM CONTROLS ---- */
+.zoom-controls {
+  display: none; /* hidden until camera is on */
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 30;
+  flex-direction: column;
+  gap: 6px;
+}
+.zoom-controls.visible { display: flex; }
+
+.zoom-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(10,10,12,0.75);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s, transform 0.1s;
+  line-height: 1;
+  user-select: none;
+}
+.zoom-btn:hover { background: rgba(200,240,96,0.2); color: var(--accent); border-color: var(--accent); }
+.zoom-btn:active { transform: scale(0.92); }
+
+.zoom-level {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--muted);
+  text-align: center;
+  padding: 2px 0;
+  background: rgba(10,10,12,0.6);
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+
+    <!-- Logo -->
+    <div class="logo">
+      <div class="logo-mark">
+        <div class="logo-icon">
+          <svg viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="6" stroke="#0a0a0c" stroke-width="1.5"/>
+            <circle cx="9" cy="9" r="2.5" fill="#0a0a0c"/>
+            <path d="M9 3V1M9 17v-2M3 9H1M17 9h-2" stroke="#0a0a0c" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h1>Music Portrait</h1>
+      </div>
+      <p>your face in sound</p>
+    </div>
+
+    <!-- Status row -->
+    <div class="section" style="padding-top:14px;padding-bottom:14px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <span class="badge" id="camBadge"><span class="badge-dot"></span>camera off</span>
+        <span class="badge" id="trackBadge">no tracks</span>
+      </div>
+    </div>
+
+    <!-- SOURCE TABS -->
+    <div class="section">
+      <div class="section-label">Music source</div>
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchSource('spotify')">Spotify</button>
+        <button class="tab-btn" onclick="switchSource('youtube')">YouTube</button>
+        <button class="tab-btn" onclick="switchSource('manual')">Manual</button>
+      </div>
+
+      <!-- SPOTIFY -->
+      <div id="src-spotify">
+        <div class="hint-box">
+          <strong>Spotify OAuth setup (one-time)</strong><br><br>
+          <div class="step"><div class="step-num">1</div><p>Go to <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com/dashboard</a> → Create App → set Redirect URI to <code>http://localhost:8888/callback</code> or your hosted URL + <code>/callback</code></p></div>
+          <div class="step"><div class="step-num">2</div><p>Copy your <strong>Client ID</strong> below and click <strong>Login with Spotify</strong></p></div>
+          <div class="step"><div class="step-num">3</div><p>After login you'll be redirected back — your top tracks load automatically</p></div>
+        </div>
+        <input type="text" id="spotifyClientId" placeholder="Spotify Client ID…">
+        <input type="text" id="spotifyRedirect" placeholder="Redirect URI (e.g. http://localhost:8888/callback)" value="">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button class="btn spotify full" onclick="spotifyLogin()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+            Login with Spotify
+          </button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="btn sm full" onclick="loadSpotifyDemo()">Use demo tracks</button>
+        </div>
+        <p class="status-msg" id="spotifyStatus"></p>
+        <div id="spotifyLoaded" style="display:none" class="fade-in">
+          <div class="track-preview" id="spotifyTrackList"></div>
+        </div>
+      </div>
+
+      <!-- YOUTUBE MUSIC -->
+      <div id="src-youtube" style="display:none">
+        <div class="hint-box">
+          <strong>YouTube Music — 3 ways to import:</strong><br><br>
+          <div class="step"><div class="step-num">A</div><p><strong>Google Takeout:</strong> Go to <a href="https://takeout.google.com" target="_blank">takeout.google.com</a> → select <strong>YouTube and YouTube Music</strong> → download → open <code>history/watch-history.json</code> → paste contents below</p></div>
+          <div class="step"><div class="step-num">B</div><p><strong>Playlist paste:</strong> Open any YT Music playlist → copy all track titles → paste below (one per line)</p></div>
+          <div class="step"><div class="step-num">C</div><p><strong>Quick add:</strong> Type or paste songs in <code>Song – Artist</code> format</p></div>
+        </div>
+        <div class="tab-bar" style="margin-bottom:12px">
+          <button class="tab-btn active" onclick="switchYTMode('takeout')" id="yt-takeout-btn">Takeout JSON</button>
+          <button class="tab-btn" onclick="switchYTMode('text')" id="yt-text-btn">Text paste</button>
+        </div>
+        <div id="yt-takeout">
+          <textarea id="ytJson" placeholder='Paste your watch-history.json content here…'></textarea>
+          <button class="btn full primary" onclick="parseYTTakeout()">Parse watch history</button>
+        </div>
+        <div id="yt-text" style="display:none">
+          <textarea id="ytText" placeholder="Song name – Artist&#10;Another Song – Artist 2&#10;…"></textarea>
+          <button class="btn full primary" onclick="parseYTText()">Load tracks</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn sm full" onclick="loadYTDemo()">Use demo tracks</button>
+        </div>
+        <p class="status-msg" id="ytStatus"></p>
+        <div id="ytLoaded" style="display:none" class="fade-in">
+          <div class="track-preview" id="ytTrackList"></div>
+        </div>
+      </div>
+
+      <!-- MANUAL -->
+      <div id="src-manual" style="display:none">
+        <div class="hint-box">
+          Enter your tracks in <code>Song – Artist</code> format, one per line. Works with any music service — just copy your playlist and paste it here.
+        </div>
+        <textarea id="manualText" placeholder="Blinding Lights – The Weeknd&#10;Flowers – Miley Cyrus&#10;Anti-Hero – Taylor Swift&#10;…"></textarea>
+        <div style="display:flex;gap:8px;">
+          <button class="btn primary" style="flex:1" onclick="parseManual()">Load tracks</button>
+          <button class="btn sm" onclick="loadManualDemo()">Demo</button>
+        </div>
+        <p class="status-msg" id="manualStatus"></p>
+      </div>
+    </div>
+
+    <!-- DISPLAY CONTROLS -->
+    <div class="section">
+      <div class="section-label">Display</div>
+
+      <div style="margin-bottom:10px;">
+        <p style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:6px;">Label style</p>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="lbl-song" onclick="setLabel('song')">Song</button>
+          <button class="toggle-btn" id="lbl-artist" onclick="setLabel('artist')">Artist</button>
+          <button class="toggle-btn" id="lbl-both" onclick="setLabel('both')">Both</button>
+          <button class="toggle-btn" id="lbl-art" onclick="setLabel('art')">Album art</button>
+          <button class="toggle-btn" id="lbl-color" onclick="setLabel('color')">None</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <p style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:6px;">Tile shape</p>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="sh-square" onclick="setShape('square')">Square</button>
+          <button class="toggle-btn" id="sh-round" onclick="setShape('round')">Rounded</button>
+          <button class="toggle-btn" id="sh-circle" onclick="setShape('circle')">Circle</button>
+        </div>
+      </div>
+
+      <div class="control-row">
+        <label>Grid size</label>
+        <input type="range" min="6" max="48" value="20" step="1" id="gridSlider"
+          oninput="gridN=+this.value;document.getElementById('gridVal').textContent=this.value">
+        <span class="val" id="gridVal">20</span>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <p style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:6px;">Tile colour</p>
+        <div class="toggle-group">
+          <button class="toggle-btn active" id="cm-palette" onclick="setColorMode('palette')">Palette</button>
+          <button class="toggle-btn" id="cm-real" onclick="setColorMode('real')">Real cam</button>
+        </div>
+      </div>
+
+      <div class="control-row" id="colorMixRow">
+        <label>Colour mix</label>
+        <input type="range" min="0" max="100" value="70" step="1" id="colorMixSlider"
+          oninput="colorMix=+this.value/100;document.getElementById('colorMixVal').textContent=this.value+'%'">
+        <span class="val" id="colorMixVal">70%</span>
+      </div>
+
+      <div class="control-row">
+        <label>Mirror</label>
+        <div class="toggle-group" style="margin-bottom:0;flex:1;">
+          <button class="toggle-btn active" id="mir-on" onclick="setMirror(true)">On</button>
+          <button class="toggle-btn" id="mir-off" onclick="setMirror(false)">Off</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="section" id="legendSection" style="display:none">
+      <div class="section-label">Artists</div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <!-- BOTTOM ACTIONS -->
+    <div class="section" style="margin-top:auto">
+      <div style="display:flex;gap:8px;flex-direction:column;">
+        <button class="btn full primary" id="camBtn" onclick="toggleCamera()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+          Start camera
+        </button>
+        <button class="btn full" id="flipCamBtn" onclick="switchCamera()" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+          Flip camera
+        </button>
+        <button class="btn full" onclick="captureSnapshot()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M20.94 11A8.994 8.994 0 0 0 12 3 8.994 8.994 0 0 0 3.06 11M3.06 13A8.994 8.994 0 0 0 12 21a8.994 8.994 0 0 0 8.94-8"/></svg>
+          Save snapshot
+        </button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ===== MAIN AREA ===== -->
+  <main class="main">
+
+    <div class="cam-header">
+      <h2>Live portrait</h2>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="badge" id="fpsDisplay">— fps</span>
+        <span class="badge" id="tileBadge">— tiles</span>
+        <button class="icon-btn" id="expandBtn" onclick="toggleExpand()" title="Expand panel">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+        <button class="icon-btn" id="fullscreenBtn" onclick="toggleFullscreen()" title="Fullscreen">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <div class="stage-placeholder" id="placeholder">
+          <div class="big-icon">◎</div>
+          <h3>No camera yet</h3>
+          <p>Load your music tracks from the sidebar, then hit "Start camera" to see yourself as a mosaic of your music taste.</p>
+        </div>
+        <video id="vid" autoplay playsinline muted></video>
+        <canvas id="live"></canvas>
+        <div class="tooltip" id="tooltip"></div>
+        <!-- Zoom controls (shown when camera is active and zoom is supported) -->
+        <div class="zoom-controls" id="zoomControls">
+          <button class="zoom-btn" id="zoomInBtn" title="Zoom in">+</button>
+          <div class="zoom-level" id="zoomLevel">1×</div>
+          <button class="zoom-btn" id="zoomOutBtn" title="Zoom out">−</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span>Music Portrait — runs entirely in your browser</span>
+      <span style="flex:1"></span>
+      <span class="fps" id="statusFps"></span>
+      <span id="statusTracks"></span>
+    </div>
+
+  </main>
+
+  <!-- Peek tab shown when sidebar is hidden -->
+  <button class="peek-btn" onclick="toggleExpand()" title="Show sidebar">
+    <svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l6 6-6 6"/></svg>
+  </button>
+
+</div>
+
+<script>
+const PALETTE = [
+  {h:'#c8f060',n:'Lime'},{h:'#60d4f0',n:'Cyan'},{h:'#f060a8',n:'Pink'},
+  {h:'#f0a060',n:'Amber'},{h:'#a060f0',n:'Purple'},{h:'#60f0a0',n:'Mint'},
+  {h:'#f06060',n:'Red'},{h:'#60a0f0',n:'Blue'},{h:'#f0d060',n:'Yellow'},
+  {h:'#d060f0',n:'Violet'},{h:'#60f0d4',n:'Teal'},{h:'#f09060',n:'Coral'},
+];
+
+const DEMO_TRACKS = [
+  'Blinding Lights – The Weeknd','Flowers – Miley Cyrus','Anti-Hero – Taylor Swift',
+  'As It Was – Harry Styles','Bad Guy – Billie Eilish','Stay – The Kid LAROI',
+  'Levitating – Dua Lipa','Good 4 U – Olivia Rodrigo','Montero – Lil Nas X',
+  'Butter – BTS','Easy On Me – Adele','Shivers – Ed Sheeran','Unholy – Sam Smith',
+  'Kill Bill – SZA','Cruel Summer – Taylor Swift','Golden Hour – JVKE',
+  'Escapism – RAYE','Glimpse of Us – Joji','Calm Down – Rema',
+  'drivers license – Olivia Rodrigo','Heat Waves – Glass Animals',
+  'STAY – Justin Bieber','Peaches – Justin Bieber','Leave The Door Open – Silk Sonic',
+  'Kiss Me More – Doja Cat','Watermelon Sugar – Harry Styles',
+];
+
+let tracks = [];
+let colorToTrack = {};  // palette index -> track, rebuilt when tracks change
+let labelMode = 'song';
+let tileShape = 'square';
+let gridN = 20;
+let colorMix = 0.70;
+let colorMode = 'palette'; // 'palette' | 'real'
+let mirrorMode = true;
+let stream = null;
+let rafId = null;
+let cameraOn = false;
+let currentFacingMode = 'user';
+let lastFrameTime = 0;
+let fps = 0;
+let frameCount = 0;
+let fpsTimer = 0;
+
+function hexToRgb(h) {
+  return { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) };
+}
+
+const paletteRgb = PALETTE.map(p => ({ ...hexToRgb(p.h), ...p }));
+
+function closestPaletteIndex(r, g, b) {
+  let best = 0, bd = Infinity;
+  paletteRgb.forEach((p, i) => {
+    const d = (r-p.r)**2 + (g-p.g)**2 + (b-p.b)**2;
+    if (d < bd) { bd = d; best = i; }
+  });
+  return best;
+}
+
+function buildColorToTrack() {
+  colorToTrack = {};
+  if (!tracks.length) return;
+  PALETTE.forEach((_, i) => {
+    colorToTrack[i] = tracks[i % tracks.length];
+  });
+}
+
+/* ---- ALBUM ART via iTunes Search API ---- */
+// Cache: "Artist – Song" -> HTMLImageElement (loaded) or null (not found)
+const artCache = {};
+
+async function fetchArtForTrack(track) {
+  const key = track.artist + '–' + track.song;
+  if (key in artCache) return; // already fetched or in-flight
+  artCache[key] = null; // mark in-flight
+  try {
+    const q = encodeURIComponent(track.song + ' ' + track.artist);
+    const res = await fetch(`https://itunes.apple.com/search?term=${q}&entity=song&limit=1`);
+    const data = await res.json();
+    const result = data.results?.[0];
+    if (!result?.artworkUrl100) return;
+    // Bump to 300px for better quality when drawn large
+    const url = result.artworkUrl100.replace('100x100', '300x300');
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { artCache[key] = img; };
+    img.onerror = () => { artCache[key] = null; };
+    img.src = url;
+  } catch { /* network fail — leave as null */ }
+}
+
+async function fetchAllArt() {
+  // Fetch art for all unique tracks (rate-limit to avoid hammering iTunes)
+  const unique = [...new Map(tracks.map(t => [t.artist + t.song, t])).values()];
+  for (let i = 0; i < unique.length; i++) {
+    fetchArtForTrack(unique[i]); // fire-and-forget, fills cache as images load
+    if (i % 5 === 4) await new Promise(r => setTimeout(r, 200)); // gentle throttle
+  }
+}
+
+function getTrackArt(track) {
+  const key = track.artist + '–' + track.song;
+  return artCache[key] || null; // returns loaded HTMLImageElement or null
+}
+
+function getTileColor(pixelRgb, paletteColor) {
+  if (colorMode === 'real') {
+    // Pure camera colour, no palette influence
+    return `rgb(${pixelRgb.r},${pixelRgb.g},${pixelRgb.b})`;
+  }
+  // Palette mode: blend palette hue with actual pixel colour
+  const pr = hexToRgb(paletteColor.h);
+  const r = Math.round(pr.r * colorMix + pixelRgb.r * (1 - colorMix));
+  const g = Math.round(pr.g * colorMix + pixelRgb.g * (1 - colorMix));
+  const b = Math.round(pr.b * colorMix + pixelRgb.b * (1 - colorMix));
+  return `rgb(${r},${g},${b})`;
+}
+
+function parseTracks(raw) {
+  return raw.split('\n').map(l => l.trim()).filter(l => l).map((l, i) => {
+    const parts = l.split(/\s[–\-]\s|[–]/);
+    return {
+      song: parts[0]?.trim() || l,
+      artist: parts[1]?.trim() || 'Unknown',
+      color: PALETTE[i % PALETTE.length]
+    };
+  });
+}
+
+function setTracks(arr, source) {
+  tracks = arr;
+  buildColorToTrack();
+  fetchAllArt(); // start fetching album art in background
+  const badge = document.getElementById('trackBadge');
+  badge.textContent = arr.length + ' tracks';
+  badge.className = 'badge ok';
+  buildLegend();
+  document.getElementById('legendSection').style.display = 'block';
+  document.getElementById('statusTracks').textContent = arr.length + ' tracks from ' + source;
+  const tileCount = Math.ceil(gridN * gridN * (4/3));
+  document.getElementById('tileBadge').textContent = tileCount + ' tiles';
+}
+
+function buildLegend() {
+  const seen = {};
+  tracks.forEach(t => { if (!seen[t.artist]) seen[t.artist] = t.color; });
+  const el = document.getElementById('legend');
+  el.innerHTML = Object.entries(seen).slice(0, 16).map(([a, c]) =>
+    `<div class="leg-item"><div class="leg-dot" style="background:${c.h}"></div><span>${a}</span></div>`
+  ).join('');
+}
+
+function renderTrackList(containerId, arr) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = arr.slice(0, 100).map(t =>
+    `<div class="track-item">
+      <div class="track-color" style="background:${t.color.h}"></div>
+      <span class="track-name">${t.song}</span>
+      <span class="track-artist">${t.artist}</span>
+    </div>`
+  ).join('');
+}
+
+/* ---- SOURCE TABS ---- */
+function switchSource(s) {
+  ['spotify','youtube','manual'].forEach(n => {
+    document.getElementById('src-'+n).style.display = n === s ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach((el, i) => {
+    el.classList.toggle('active', ['spotify','youtube','manual'][i] === s);
+  });
+}
+
+function switchYTMode(m) {
+  document.getElementById('yt-takeout').style.display = m === 'takeout' ? 'block' : 'none';
+  document.getElementById('yt-text').style.display = m === 'text' ? 'block' : 'none';
+  document.getElementById('yt-takeout-btn').classList.toggle('active', m === 'takeout');
+  document.getElementById('yt-text-btn').classList.toggle('active', m === 'text');
+}
+
+/* ---- SPOTIFY ---- */
+function spotifyLogin() {
+  const cid = document.getElementById('spotifyClientId').value.trim();
+  const redirect = document.getElementById('spotifyRedirect').value.trim();
+  if (!cid) { setStatus('spotifyStatus', 'err', 'Enter your Client ID first.'); return; }
+  if (!redirect) { setStatus('spotifyStatus', 'err', 'Enter the Redirect URI you registered in Spotify dashboard.'); return; }
+  const params = new URLSearchParams({
+    client_id: cid,
+    response_type: 'token',
+    redirect_uri: redirect,
+    scope: 'user-top-read user-read-recently-played',
+    show_dialog: 'true'
+  });
+  const popup = window.open('https://accounts.spotify.com/authorize?' + params.toString(), 'spotify_auth', 'width=500,height=650');
+  setStatus('spotifyStatus', '', 'Waiting for Spotify login…');
+  const poll = setInterval(() => {
+    try {
+      if (!popup || popup.closed) { clearInterval(poll); return; }
+      const url = popup.location.href;
+      if (url.includes('access_token')) {
+        const token = new URLSearchParams(url.split('#')[1]).get('access_token');
+        popup.close();
+        clearInterval(poll);
+        if (token) fetchSpotifyWithToken(token);
+      }
+    } catch(e) {}
+  }, 500);
+}
+
+async function fetchSpotifyWithToken(token) {
+  setStatus('spotifyStatus', '', 'Fetching your top tracks…');
+  try {
+    const [topRes, recentRes] = await Promise.all([
+      fetch('https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=short_term', { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('https://api.spotify.com/v1/me/player/recently-played?limit=50', { headers: { Authorization: 'Bearer ' + token } })
+    ]);
+    let combined = [];
+    if (topRes.ok) {
+      const d = await topRes.json();
+      combined.push(...d.items.map((item, i) => ({
+        song: item.name, artist: item.artists[0].name,
+        album: item.album.name, color: PALETTE[i % PALETTE.length]
+      })));
+    }
+    if (recentRes.ok) {
+      const d = await recentRes.json();
+      d.items.forEach((item, i) => {
+        const t = item.track;
+        if (!combined.find(x => x.song === t.name)) {
+          combined.push({ song: t.name, artist: t.artists[0].name, color: PALETTE[(combined.length + i) % PALETTE.length] });
+        }
+      });
+    }
+    if (!combined.length) { setStatus('spotifyStatus', 'err', 'No tracks found. Check scopes and token.'); return; }
+    setTracks(combined, 'Spotify');
+    setStatus('spotifyStatus', 'ok', combined.length + ' tracks loaded!');
+    document.getElementById('spotifyLoaded').style.display = 'block';
+    renderTrackList('spotifyTrackList', combined);
+    document.getElementById('camBadge').className = 'badge spotify-badge';
+    document.getElementById('camBadge').innerHTML = '<span class="badge-dot"></span>spotify connected';
+  } catch(e) { setStatus('spotifyStatus', 'err', 'Error: ' + e.message); }
+}
+
+function loadSpotifyDemo() {
+  const arr = parseTracks(DEMO_TRACKS.join('\n'));
+  setTracks(arr, 'Demo');
+  setStatus('spotifyStatus', 'ok', 'Demo tracks loaded!');
+  document.getElementById('spotifyLoaded').style.display = 'block';
+  renderTrackList('spotifyTrackList', arr);
+}
+
+/* ---- YOUTUBE MUSIC ---- */
+function parseYTTakeout() {
+  const raw = document.getElementById('ytJson').value.trim();
+  if (!raw) { setStatus('ytStatus', 'err', 'Paste your watch-history.json content first.'); return; }
+  try {
+    const data = JSON.parse(raw);
+    const arr = [];
+    const seen = new Set();
+    data.forEach((item, i) => {
+      const title = item.title?.replace(/^Watched\s+/i, '') || '';
+      const channel = item.subtitles?.[0]?.name || item.channelTitle || 'Unknown';
+      if (title && !seen.has(title)) {
+        seen.add(title);
+        arr.push({ song: title, artist: channel, color: PALETTE[arr.length % PALETTE.length] });
+      }
+    });
+    if (!arr.length) { setStatus('ytStatus', 'err', 'No tracks found. Make sure you pasted the correct JSON.'); return; }
+    setTracks(arr, 'YouTube Music');
+    setStatus('ytStatus', 'ok', arr.length + ' tracks parsed from takeout!');
+    document.getElementById('ytLoaded').style.display = 'block';
+    renderTrackList('ytTrackList', arr);
+    document.getElementById('camBadge').className = 'badge yt-badge';
+    document.getElementById('camBadge').innerHTML = '<span class="badge-dot"></span>youtube connected';
+  } catch(e) {
+    setStatus('ytStatus', 'err', 'Invalid JSON. Make sure you pasted the full watch-history.json file contents.');
+  }
+}
+
+function parseYTText() {
+  const raw = document.getElementById('ytText').value;
+  const arr = parseTracks(raw);
+  if (!arr.length) { setStatus('ytStatus', 'err', 'No tracks found.'); return; }
+  setTracks(arr, 'YouTube Music');
+  setStatus('ytStatus', 'ok', arr.length + ' tracks loaded!');
+  document.getElementById('ytLoaded').style.display = 'block';
+  renderTrackList('ytTrackList', arr);
+}
+
+function loadYTDemo() {
+  const arr = parseTracks(DEMO_TRACKS.join('\n'));
+  setTracks(arr, 'Demo');
+  setStatus('ytStatus', 'ok', 'Demo tracks loaded!');
+  document.getElementById('ytLoaded').style.display = 'block';
+  renderTrackList('ytTrackList', arr);
+}
+
+/* ---- MANUAL ---- */
+function parseManual() {
+  const arr = parseTracks(document.getElementById('manualText').value);
+  if (!arr.length) { setStatus('manualStatus', 'err', 'No tracks found.'); return; }
+  setTracks(arr, 'manual input');
+  setStatus('manualStatus', 'ok', arr.length + ' tracks loaded!');
+}
+
+function loadManualDemo() {
+  document.getElementById('manualText').value = DEMO_TRACKS.join('\n');
+  parseManual();
+}
+
+/* ---- CONTROLS ---- */
+function setLabel(m) {
+  labelMode = m;
+  ['song','artist','both','art','color'].forEach(k => document.getElementById('lbl-'+k).classList.toggle('active', k === m));
+}
+
+function setShape(s) {
+  tileShape = s;
+  ['square','round','circle'].forEach(k => document.getElementById('sh-'+k).classList.toggle('active', k === s));
+}
+
+function setMirror(v) {
+  mirrorMode = v;
+  document.getElementById('mir-on').classList.toggle('active', v);
+  document.getElementById('mir-off').classList.toggle('active', !v);
+}
+
+function setColorMode(m) {
+  colorMode = m;
+  document.getElementById('cm-palette').classList.toggle('active', m === 'palette');
+  document.getElementById('cm-real').classList.toggle('active', m === 'real');
+  // Dim the colour mix slider when it has no effect in real mode
+  const row = document.getElementById('colorMixRow');
+  row.style.opacity = m === 'real' ? '0.35' : '1';
+  row.style.pointerEvents = m === 'real' ? 'none' : 'auto';
+}
+
+/* ---- EXPAND / FULLSCREEN ---- */
+let isExpanded = false;
+
+function toggleExpand() {
+  isExpanded = !isExpanded;
+  const app = document.querySelector('.app');
+  app.classList.toggle('expanded', isExpanded);
+  // Remove fullscreen-mode if active
+  if (isExpanded) app.classList.remove('fullscreen-mode');
+  const btn = document.getElementById('expandBtn');
+  btn.classList.toggle('active', isExpanded);
+  btn.title = isExpanded ? 'Show sidebar' : 'Expand panel';
+  btn.innerHTML = isExpanded
+    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H3v-6M15 3h6v6M3 15l7-7M21 9l-7 7"/></svg>`
+    : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+}
+
+function setAppHeight() {
+  // Sets --app-height to the true visible viewport height.
+  // On mobile, window.innerHeight reflects the current visible area
+  // (minus browser chrome). We call this after scrolling to top so
+  // the toolbar is as collapsed as possible.
+  document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+}
+
+function toggleFullscreen() {
+  const app = document.querySelector('.app');
+  const btn = document.getElementById('fullscreenBtn');
+
+  const exitIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>`;
+  const enterIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
+
+  const isNativeFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  const isCSSFS = document.body.classList.contains('mobile-fullscreen');
+
+  function enterCSSFullscreen() {
+    // Scroll to top first — this collapses mobile browser toolbars
+    window.scrollTo(0, 0);
+    // Small delay so the browser has time to collapse the toolbar
+    setTimeout(() => {
+      setAppHeight();
+      document.body.classList.add('mobile-fullscreen');
+      app.classList.add('fullscreen-mode');
+      app.classList.remove('expanded');
+      isExpanded = false;
+      document.getElementById('expandBtn').classList.remove('active');
+      btn.classList.add('active');
+      btn.title = 'Exit fullscreen';
+      btn.innerHTML = exitIcon;
+    }, 100);
+  }
+
+  function exitCSSFullscreen() {
+    document.body.classList.remove('mobile-fullscreen');
+    app.classList.remove('fullscreen-mode');
+    btn.classList.remove('active');
+    btn.title = 'Fullscreen';
+    btn.innerHTML = enterIcon;
+  }
+
+  if (isNativeFS) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document)
+      .then(() => { app.classList.remove('fullscreen-mode'); btn.classList.remove('active'); btn.title = 'Fullscreen'; btn.innerHTML = enterIcon; })
+      .catch(() => {});
+    return;
+  }
+
+  if (isCSSFS) {
+    exitCSSFullscreen();
+    return;
+  }
+
+  // Try native fullscreen API
+  const reqFS = document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen;
+  if (reqFS) {
+    reqFS.call(document.documentElement).then(() => {
+      app.classList.add('fullscreen-mode');
+      app.classList.remove('expanded');
+      isExpanded = false;
+      document.getElementById('expandBtn').classList.remove('active');
+      btn.classList.add('active');
+      btn.title = 'Exit fullscreen';
+      btn.innerHTML = exitIcon;
+    }).catch(() => {
+      // Native denied (iOS Safari) — use CSS fullscreen
+      enterCSSFullscreen();
+    });
+  } else {
+    // No API at all — CSS fullscreen
+    enterCSSFullscreen();
+  }
+}
+
+// Keep --app-height up to date on resize (e.g. keyboard open/close, orientation change)
+window.addEventListener('resize', () => {
+  if (document.body.classList.contains('mobile-fullscreen')) {
+    setAppHeight();
+  }
+});
+
+// Sync when native fullscreen exits (Escape key etc.)
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    document.querySelector('.app').classList.remove('fullscreen-mode');
+    document.body.classList.remove('mobile-fullscreen');
+    const btn = document.getElementById('fullscreenBtn');
+    btn.classList.remove('active');
+    btn.title = 'Fullscreen';
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
+  }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  if (!document.webkitFullscreenElement) {
+    document.querySelector('.app').classList.remove('fullscreen-mode');
+    document.body.classList.remove('mobile-fullscreen');
+    const btn = document.getElementById('fullscreenBtn');
+    btn.classList.remove('active');
+    btn.title = 'Fullscreen';
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
+  }
+});
+
+/* ---- ZOOM ---- */
+let zoomLevel = 1;
+let zoomMin = 1;
+let zoomMax = 1;
+let zoomStep = 0.5;
+let zoomSupported = false;
+
+async function initZoom() {
+  zoomSupported = false;
+  zoomLevel = 1;
+  document.getElementById('zoomControls').classList.remove('visible');
+  if (!stream) return;
+  const track = stream.getVideoTracks()[0];
+  if (!track) return;
+  try {
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.zoom) {
+      zoomMin = caps.zoom.min || 1;
+      zoomMax = caps.zoom.max || 1;
+      zoomStep = caps.zoom.step || 0.5;
+      zoomLevel = Math.max(zoomMin, 1);
+      zoomSupported = true;
+      document.getElementById('zoomControls').classList.add('visible');
+      updateZoomUI();
+    }
+  } catch(_) {}
+}
+
+function updateZoomUI() {
+  document.getElementById('zoomLevel').textContent = zoomLevel.toFixed(1) + '×';
+  document.getElementById('zoomInBtn').style.opacity = zoomLevel >= zoomMax ? '0.35' : '1';
+  document.getElementById('zoomOutBtn').style.opacity = zoomLevel <= zoomMin ? '0.35' : '1';
+}
+
+async function applyZoom() {
+  if (!zoomSupported || !stream) return;
+  const track = stream.getVideoTracks()[0];
+  if (!track) return;
+  try {
+    await track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
+  } catch(_) {}
+  updateZoomUI();
+}
+
+/* Hold-to-zoom: fires continuously while button is held */
+let zoomHoldTimer = null;
+let zoomHoldRAF = null;
+
+function startZoom(dir) {
+  // Immediate first step
+  const delta = zoomStep * dir;
+  zoomLevel = Math.min(zoomMax, Math.max(zoomMin, zoomLevel + delta));
+  applyZoom();
+
+  // After short delay, start rapid continuous zoom
+  zoomHoldTimer = setTimeout(() => {
+    function loop() {
+      zoomLevel = Math.min(zoomMax, Math.max(zoomMin, zoomLevel + delta));
+      applyZoom();
+      // Stop if we hit the limit
+      if ((dir > 0 && zoomLevel >= zoomMax) || (dir < 0 && zoomLevel <= zoomMin)) {
+        stopZoom();
+        return;
+      }
+      zoomHoldRAF = requestAnimationFrame(loop);
+    }
+    zoomHoldRAF = requestAnimationFrame(loop);
+  }, 350);
+}
+
+function stopZoom() {
+  clearTimeout(zoomHoldTimer);
+  cancelAnimationFrame(zoomHoldRAF);
+  zoomHoldTimer = null;
+  zoomHoldRAF = null;
+}
+
+function setupZoomButtons() {
+  const inBtn = document.getElementById('zoomInBtn');
+  const outBtn = document.getElementById('zoomOutBtn');
+  [inBtn, outBtn].forEach((btn, i) => {
+    const dir = i === 0 ? 1 : -1;
+    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); startZoom(dir); });
+    btn.addEventListener('pointerup', stopZoom);
+    btn.addEventListener('pointerleave', stopZoom);
+    btn.addEventListener('pointercancel', stopZoom);
+    // Prevent context menu on long-press (mobile)
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  });
+}
+
+
+
+function setupTooltip() {
+  const canvas = document.getElementById('live');
+  const tooltip = document.getElementById('tooltip');
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+    const tile = tileData.find(t => mx >= t.x && mx < t.x + t.w && my >= t.y && my < t.y + t.h);
+    if (tile) {
+      tooltip.textContent = tile.track.song + ' — ' + tile.track.artist;
+      tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 32) + 'px';
+      tooltip.style.opacity = '1';
+    } else {
+      tooltip.style.opacity = '0';
+    }
+  };
+  canvas.onmouseleave = () => { tooltip.style.opacity = '0'; };
+}
+
+/* ---- SEGMENTATION + CAMERA ---- */
+let segmenter = null;
+let poseDetector = null;
+let segmentMask = null;      // Float32Array [0..1] per pixel, final output
+let smoothedMask = null;     // EMA accumulator
+let maskCanvas = null;
+let maskCtx = null;
+let vidCanvas = null;
+let vidCtx = null;
+let tileData = [];
+
+// Pose landmarks: which ones indicate a real human body part
+// 0=nose, 11-12=shoulders, 13-14=elbows, 15-16=wrists,
+// 23-24=hips, 25-26=knees, 27-28=ankles
+const BODY_LANDMARK_INDICES = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+let poseKeypoints = [];       // [{x,y,visibility}] in normalised coords, updated each pose frame
+let poseValid = false;        // true when pose detected this frame
+let poseLandmarkMask = null;  // Float32Array — gaussian blobs around each keypoint
+let poseFrameCount = 0;
+const POSE_EVERY_N = 3;       // run pose every N segmentation frames (perf balance)
+
+// Tuning knobs
+const MASK_THRESHOLD  = 0.78; // raised — stricter confidence to count as person
+const TILE_PERSON_MIN = 0.60; // raised — tile must be more solidly human
+const MASK_SMOOTH     = 0.55; // slightly less sticky so mask follows movement better
+const MASK_ERODE      = 2;    // stronger erosion to kill bg bleed at edges
+const POSE_BOOST      = 0.35; // how much pose landmark heatmap is blended into mask
+const POSE_SIGMA      = 0.12; // gaussian radius of each landmark blob (fraction of image width)
+const MIN_BLOB_FRAC   = 0.01; // minimum blob size as fraction of total pixels (removes tiny false positives)
+
+async function loadSegmenter() {
+  const badge = document.getElementById('camBadge');
+  badge.className = 'badge';
+  badge.innerHTML = '<span class="badge-dot"></span>loading AI…';
+
+  if (typeof SelfieSegmentation === 'undefined') {
+    throw new Error('MediaPipe failed to load. Check your internet connection and try again.');
+  }
+
+  // Segmentation model — model 1 is landscape/general (better for full body)
+  segmenter = new SelfieSegmentation({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
+  });
+  segmenter.setOptions({ modelSelection: 1, selfieMode: false }); // selfieMode:false = landscape/general
+  segmenter.onResults(onSegmentResults);
+  await segmenter.initialize();
+
+  // Pose model — runs in parallel to validate human body parts
+  if (typeof Pose !== 'undefined') {
+    poseDetector = new Pose({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+    });
+    poseDetector.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      enableSegmentation: false,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    poseDetector.onResults(onPoseResults);
+    await poseDetector.initialize();
+  }
+
+  return segmenter;
+}
+
+function onPoseResults(results) {
+  poseKeypoints = [];
+  poseValid = false;
+  poseLandmarkMask = null;
+  if (!results.poseLandmarks || !maskCanvas) return;
+
+  const W = maskCanvas.width, H = maskCanvas.height;
+  const n = W * H;
+
+  // Count visible landmarks — need at least 3 high-confidence ones to trust detection
+  const visible = results.poseLandmarks.filter((lm, i) =>
+    BODY_LANDMARK_INDICES.includes(i) && lm.visibility > 0.4
+  );
+  if (visible.length < 3) return;
+
+  poseValid = true;
+  poseKeypoints = results.poseLandmarks;
+
+  // Build a heatmap: gaussian blobs around each visible landmark
+  const heat = new Float32Array(n);
+  const sigma = POSE_SIGMA * W;
+  const sigma2 = 2 * sigma * sigma;
+
+  for (const idx of BODY_LANDMARK_INDICES) {
+    const lm = results.poseLandmarks[idx];
+    if (!lm || lm.visibility < 0.35) continue;
+    const cx = lm.x * W;
+    const cy = lm.y * H;
+    const r = Math.ceil(sigma * 3);
+    const x0 = Math.max(0, Math.floor(cx - r));
+    const x1 = Math.min(W - 1, Math.ceil(cx + r));
+    const y0 = Math.max(0, Math.floor(cy - r));
+    const y1 = Math.min(H - 1, Math.ceil(cy + r));
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const d2 = (x - cx) ** 2 + (y - cy) ** 2;
+        const v = Math.exp(-d2 / sigma2) * lm.visibility;
+        const idx2 = y * W + x;
+        if (v > heat[idx2]) heat[idx2] = v;
+      }
+    }
+  }
+  poseLandmarkMask = heat;
+}
+
+/* ---- Connected-component largest-blob filter ----
+   Finds all connected regions in the thresholded mask and keeps only
+   the largest one, discarding small false-positive patches (objects). */
+function keepLargestBlob(binary, W, H) {
+  const n = W * H;
+  const label = new Int32Array(n); // 0 = unlabelled
+  let currentLabel = 0;
+  const blobSizes = [];
+  const stack = [];
+
+  for (let startIdx = 0; startIdx < n; startIdx++) {
+    if (binary[startIdx] === 0 || label[startIdx] !== 0) continue;
+    currentLabel++;
+    blobSizes.push(0);
+    stack.push(startIdx);
+    label[startIdx] = currentLabel;
+    while (stack.length) {
+      const idx = stack.pop();
+      blobSizes[currentLabel - 1]++;
+      const x = idx % W, y = (idx / W) | 0;
+      // 4-connected neighbours
+      const neighbours = [];
+      if (x > 0)     neighbours.push(idx - 1);
+      if (x < W - 1) neighbours.push(idx + 1);
+      if (y > 0)     neighbours.push(idx - W);
+      if (y < H - 1) neighbours.push(idx + W);
+      for (const ni of neighbours) {
+        if (binary[ni] === 1 && label[ni] === 0) {
+          label[ni] = currentLabel;
+          stack.push(ni);
+        }
+      }
+    }
+  }
+
+  if (currentLabel === 0) return new Uint8Array(n); // no blobs
+
+  // Find label with biggest blob
+  let bestLabel = 1, bestSize = blobSizes[0];
+  for (let i = 1; i < blobSizes.length; i++) {
+    if (blobSizes[i] > bestSize) { bestSize = blobSizes[i]; bestLabel = i + 1; }
+  }
+
+  // Also keep any blob that's at least MIN_BLOB_FRAC of total pixels
+  // (handles cases where body parts are separated, e.g. arms spread wide)
+  const minSize = n * MIN_BLOB_FRAC;
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const l = label[i];
+    if (l === 0) continue;
+    const sz = blobSizes[l - 1];
+    if (l === bestLabel || sz >= minSize) out[i] = 1;
+  }
+  return out;
+}
+
+function onSegmentResults(results) {
+  if (!maskCanvas) return;
+  const W = maskCanvas.width, H = maskCanvas.height;
+  const n = W * H;
+
+  // 1. Read raw segmentation mask (red channel = confidence)
+  maskCtx.clearRect(0, 0, W, H);
+  maskCtx.drawImage(results.segmentationMask, 0, 0, W, H);
+  const raw = maskCtx.getImageData(0, 0, W, H).data;
+
+  const cur = new Float32Array(n);
+  for (let i = 0; i < n; i++) cur[i] = raw[i * 4] / 255;
+
+  // 2. Boost mask where pose landmarks confirm human body parts
+  if (poseLandmarkMask && poseLandmarkMask.length === n) {
+    for (let i = 0; i < n; i++) {
+      cur[i] = Math.min(1, cur[i] + poseLandmarkMask[i] * POSE_BOOST);
+    }
+  }
+
+  // 3. Hard threshold → binary mask for morphological operations
+  const binary = new Uint8Array(n);
+  for (let i = 0; i < n; i++) binary[i] = cur[i] >= MASK_THRESHOLD ? 1 : 0;
+
+  // 4. Connected-component filter — discard small isolated blobs (objects, background patches)
+  const blobFiltered = keepLargestBlob(binary, W, H);
+
+  // 5. Erosion — shrink inward to kill bg bleed at edges
+  const eroded = new Float32Array(n);
+  const E = MASK_ERODE;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (!blobFiltered[y * W + x]) continue; // already zero — skip
+      let minVal = cur[y * W + x];
+      outer: for (let dy = -E; dy <= E; dy++) {
+        const ny = Math.min(Math.max(y + dy, 0), H - 1);
+        for (let dx = -E; dx <= E; dx++) {
+          const nx = Math.min(Math.max(x + dx, 0), W - 1);
+          // If any neighbour pixel was excluded by blob filter, erode to 0
+          if (!blobFiltered[ny * W + nx]) { minVal = 0; break outer; }
+          const v = cur[ny * W + nx];
+          if (v < minVal) minVal = v;
+        }
+      }
+      eroded[y * W + x] = minVal;
+    }
+  }
+
+  // 6. Temporal EMA smoothing — kills flicker between frames
+  if (!smoothedMask || smoothedMask.length !== n) {
+    smoothedMask = new Float32Array(eroded);
+  } else {
+    const a = MASK_SMOOTH;
+    for (let i = 0; i < n; i++) {
+      smoothedMask[i] = a * smoothedMask[i] + (1 - a) * eroded[i];
+    }
+  }
+
+  // 7. If pose model says NO human is present, fade mask toward zero quickly
+  if (!poseValid && poseDetector) {
+    for (let i = 0; i < n; i++) smoothedMask[i] *= 0.85;
+  }
+
+  segmentMask = smoothedMask;
+
+  // 8. Draw (mirrored) video to vidCanvas
+  vidCtx.save();
+  if (mirrorMode) { vidCtx.scale(-1, 1); vidCtx.drawImage(results.image, -W, 0, W, H); }
+  else { vidCtx.drawImage(results.image, 0, 0, W, H); }
+  vidCtx.restore();
+
+  // 9. Every N frames, also run pose detection for body-part validation
+  poseFrameCount++;
+  if (poseDetector && poseFrameCount % POSE_EVERY_N === 0) {
+    poseDetector.send({ image: document.getElementById('vid') }).catch(() => {});
+  }
+
+  drawMosaic();
+}
+
+async function toggleCamera() {
+  if (cameraOn) { stopCamera(); return; }
+  if (!tracks.length) {
+    alert('Load some tracks first — use the sidebar to add music from Spotify, YouTube Music, or manually.');
+    return;
+  }
+  try {
+    // Load segmenter first
+    if (!segmenter) await loadSegmenter();
+
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: currentFacingMode }, audio: false });
+    const vid = document.getElementById('vid');
+    vid.srcObject = stream;
+    await vid.play();
+
+    // Set up offscreen canvases
+    maskCanvas = document.createElement('canvas');
+    maskCanvas.width = vid.videoWidth || 640;
+    maskCanvas.height = vid.videoHeight || 480;
+    maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
+
+    vidCanvas = document.createElement('canvas');
+    vidCanvas.width = maskCanvas.width;
+    vidCanvas.height = maskCanvas.height;
+    vidCtx = vidCanvas.getContext('2d', { willReadFrequently: true });
+
+    // Size the output canvas
+    const live = document.getElementById('live');
+    live.width = maskCanvas.width;
+    live.height = maskCanvas.height;
+
+    cameraOn = true;
+    document.getElementById('camBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="3"/></svg> Stop camera`;
+    document.getElementById('camBtn').className = 'btn full danger';
+    document.getElementById('camBadge').className = 'badge live';
+    document.getElementById('camBadge').innerHTML = '<span class="badge-dot"></span>live';
+    document.getElementById('placeholder').style.display = 'none';
+    showFlipCamBtnIfAvailable();
+    await initZoom();
+    setupTooltip();
+    renderLoop();
+  } catch(e) {
+    alert('Camera error: ' + e.message);
+  }
+}
+
+function stopCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  cancelAnimationFrame(rafId);
+  cameraOn = false;
+  segmentMask = null;
+  smoothedMask = null;
+  poseKeypoints = [];
+  poseValid = false;
+  poseLandmarkMask = null;
+  poseFrameCount = 0;
+  const ctx = document.getElementById('live').getContext('2d');
+  ctx.clearRect(0, 0, 9999, 9999);
+  document.getElementById('placeholder').style.display = 'flex';
+  document.getElementById('camBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> Start camera`;
+  document.getElementById('camBtn').className = 'btn full primary';
+  document.getElementById('camBadge').className = 'badge';
+  document.getElementById('camBadge').innerHTML = '<span class="badge-dot"></span>camera off';
+  document.getElementById('flipCamBtn').style.display = 'none';
+  document.getElementById('zoomControls').classList.remove('visible');
+  zoomSupported = false;
+  zoomLevel = 1;
+}
+
+async function showFlipCamBtnIfAvailable() {
+  try {
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+                     (navigator.maxTouchPoints > 1 && window.matchMedia('(pointer: coarse)').matches);
+    let hasMultiple = false;
+    if (navigator.mediaDevices?.enumerateDevices) {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      hasMultiple = devices.filter(d => d.kind === 'videoinput').length > 1;
+    }
+    if (isMobile || hasMultiple) {
+      document.getElementById('flipCamBtn').style.display = '';
+    }
+  } catch(_) { /* ignore */ }
+}
+
+async function switchCamera() {
+  if (!cameraOn) return;
+  const nextFacing = currentFacingMode === 'user' ? 'environment' : 'user';
+  const prevFacing = currentFacingMode;
+  try {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    currentFacingMode = nextFacing;
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: { ideal: nextFacing } }, audio: false });
+    const vid = document.getElementById('vid');
+    vid.srcObject = stream;
+    await vid.play();
+    if (maskCanvas) {
+      maskCanvas.width = vid.videoWidth || maskCanvas.width;
+      maskCanvas.height = vid.videoHeight || maskCanvas.height;
+    }
+    if (vidCanvas) {
+      vidCanvas.width = maskCanvas.width;
+      vidCanvas.height = maskCanvas.height;
+    }
+    const live = document.getElementById('live');
+    live.width = maskCanvas.width;
+    live.height = maskCanvas.height;
+    await initZoom();
+  } catch(e) {
+    currentFacingMode = prevFacing;
+    alert('Could not switch camera: ' + e.message);
+  }
+}
+
+async function renderLoop(now) {
+  if (!cameraOn) return;
+  frameCount++;
+  if (now - fpsTimer >= 1000) {
+    fps = frameCount; frameCount = 0; fpsTimer = now;
+    document.getElementById('fpsDisplay').textContent = fps + ' fps';
+    document.getElementById('statusFps').textContent = fps + ' fps';
+  }
+  const vid = document.getElementById('vid');
+  if (vid.readyState >= 2 && segmenter) {
+    await segmenter.send({ image: vid });
+  }
+  rafId = requestAnimationFrame(renderLoop);
+}
+
+/* Returns average person confidence across the tile (0..1) using smoothed Float32 mask */
+function tileMaskConfidence(mask, px, py, tW, tH, VW, VH) {
+  let sum = 0, cnt = 0;
+  const step = Math.max(1, Math.floor(Math.min(tW, tH) / 5));
+  for (let dy = 0; dy < tH && py + dy < VH; dy += step) {
+    for (let dx = 0; dx < tW && px + dx < VW; dx += step) {
+      sum += mask[(py + dy) * VW + (px + dx)];
+      cnt++;
+    }
+  }
+  return cnt > 0 ? sum / cnt : 0;
+}
+
+function drawMosaic() {
+  const canvas = document.getElementById('live');
+  if (!vidCanvas || !segmentMask) return;
+
+  const VW = vidCanvas.width, VH = vidCanvas.height;
+  const tW = Math.max(4, Math.floor(VW / gridN));
+  const tH = Math.max(4, Math.floor(VH / gridN));
+  const cols = Math.ceil(VW / tW), rows = Math.ceil(VH / tH);
+
+  canvas.width = VW; canvas.height = VH;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  // ── Layer 1: raw camera feed as background ──
+  ctx.drawImage(vidCanvas, 0, 0);
+
+  // Slight dark veil over background so tiles pop
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0, 0, VW, VH);
+
+  const vidPixels = vidCtx.getImageData(0, 0, VW, VH).data;
+  const mask = segmentMask; // Float32Array
+  tileData = [];
+
+  // Fixed small font size regardless of tile size — always readable, never huge
+  const LABEL_FS = 9; // px — tiny but legible
+  const LABEL_H  = 13; // strip height at bottom of tile
+
+  const gap = Math.max(1, Math.floor(tW * 0.06));
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = c * tW, py = r * tH;
+
+      // ── Layer 2: tiles only where mask says "human" ──
+      const conf = tileMaskConfidence(mask, px, py, tW, tH, VW, VH);
+      if (conf < TILE_PERSON_MIN) continue;
+
+      // Soft edge: tiles near the boundary fade in smoothly
+      const tileAlpha = Math.min(1, (conf - TILE_PERSON_MIN) / 0.25);
+
+      // Sample average colour from video pixels inside this tile
+      let sr = 0, sg = 0, sb = 0, cnt = 0;
+      const stepX = Math.max(1, Math.floor(tW / 4));
+      const stepY = Math.max(1, Math.floor(tH / 4));
+      for (let dy = 0; dy < tH && py + dy < VH; dy += stepY) {
+        for (let dx = 0; dx < tW && px + dx < VW; dx += stepX) {
+          const idx = ((py + dy) * VW + (px + dx)) * 4;
+          sr += vidPixels[idx]; sg += vidPixels[idx+1]; sb += vidPixels[idx+2]; cnt++;
+        }
+      }
+      if (!cnt) continue;
+
+      const ar = Math.round(sr/cnt), ag = Math.round(sg/cnt), ab = Math.round(sb/cnt);
+      const palIdx = closestPaletteIndex(ar, ag, ab);
+      const pal = PALETTE[palIdx];
+      const tileIndex = (r * cols + c + palIdx) % tracks.length;
+      const track = tracks[tileIndex];
+      if (!track) continue;
+
+      const fillColor = getTileColor({r:ar,g:ag,b:ab}, pal);
+      const x = px + gap, y = py + gap, w = tW - gap * 2, h = tH - gap * 2;
+      if (w < 2 || h < 2) continue;
+
+      // Draw tile shape with soft-edge alpha
+      ctx.globalAlpha = tileAlpha;
+      ctx.fillStyle = fillColor;
+      if (tileShape === 'circle') {
+        const cx2 = x + w/2, cy2 = y + h/2, rad = Math.min(w, h) / 2;
+        ctx.beginPath(); ctx.arc(cx2, cy2, rad, 0, Math.PI*2); ctx.fill();
+      } else if (tileShape === 'round') {
+        const rd = Math.min(w, h) * 0.25;
+        ctx.beginPath();
+        ctx.moveTo(x+rd,y); ctx.lineTo(x+w-rd,y); ctx.arcTo(x+w,y,x+w,y+rd,rd);
+        ctx.lineTo(x+w,y+h-rd); ctx.arcTo(x+w,y+h,x+w-rd,y+h,rd);
+        ctx.lineTo(x+rd,y+h); ctx.arcTo(x,y+h,x,y+h-rd,rd);
+        ctx.lineTo(x,y+rd); ctx.arcTo(x,y,x+rd,y,rd);
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.fillRect(x, y, w, h);
+      }
+
+      tileData.push({ x: px, y: py, w: tW, h: tH, track, fillColor });
+      ctx.globalAlpha = 1; // reset for label drawing
+
+      // ── Overlay: album art or text label ──
+      if (labelMode === 'art') {
+        const img = getTrackArt(track);
+        if (img) {
+          ctx.save();
+          ctx.beginPath();
+          if (tileShape === 'circle') {
+            // clip to circle for circle tiles
+            ctx.arc(x + w/2, y + h/2, Math.min(w,h)/2, 0, Math.PI*2);
+          } else if (tileShape === 'round') {
+            const rd = Math.min(w,h)*0.25;
+            ctx.moveTo(x+rd,y); ctx.lineTo(x+w-rd,y); ctx.arcTo(x+w,y,x+w,y+rd,rd);
+            ctx.lineTo(x+w,y+h-rd); ctx.arcTo(x+w,y+h,x+w-rd,y+h,rd);
+            ctx.lineTo(x+rd,y+h); ctx.arcTo(x,y+h,x,y+h-rd,rd);
+            ctx.lineTo(x,y+rd); ctx.arcTo(x,y,x+rd,y,rd);
+          } else {
+            ctx.rect(x, y, w, h);
+          }
+          ctx.clip();
+          // Draw album art cover-fit inside tile, semi-transparent so colour shows through
+          const size = Math.min(w, h);
+          const ox = x + (w - size) / 2;
+          const oy = y + (h - size) / 2;
+          ctx.globalAlpha = 0.82;
+          ctx.drawImage(img, ox, oy, size, size);
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
+        // If art not loaded yet, just show colour tile — it'll appear next frame it's ready
+
+      } else if (labelMode !== 'color') {
+        const label = labelMode === 'song'   ? track.song :
+                      labelMode === 'artist' ? track.artist :
+                      labelMode === 'both'   ? track.song + ' · ' + track.artist :
+                      track.song;
+
+        // Dark strip at bottom of tile — height fixed regardless of tile size
+        const stripH = Math.min(LABEL_H, h);
+        const stripY = y + h - stripH;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, w, h);
+        ctx.clip();
+
+        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        ctx.fillRect(x, stripY, w, stripH);
+
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'left';
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.font = `500 ${LABEL_FS}px "Bookmania", serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, x + w / 2, stripY + stripH / 2, w - 2);
+
+        ctx.restore();
+      }
+    }
+  }
+}
+
+function setupTooltip() {
+  const canvas = document.getElementById('live');
+  const tooltip = document.getElementById('tooltip');
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+    const tile = tileData.find(t => mx >= t.x && mx < t.x + t.w && my >= t.y && my < t.y + t.h);
+    if (tile) {
+      tooltip.textContent = tile.track.song + ' — ' + tile.track.artist;
+      tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 32) + 'px';
+      tooltip.style.opacity = '1';
+    } else {
+      tooltip.style.opacity = '0';
+    }
+  };
+  canvas.onmouseleave = () => { tooltip.style.opacity = '0'; };
+}
+
+function captureSnapshot() {
+  const canvas = document.getElementById('live');
+  if (!canvas.width) { alert('Start the camera first!'); return; }
+  const a = document.createElement('a');
+  a.download = 'music-portrait-' + Date.now() + '.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+function setStatus(id, type, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg' + (type ? ' ' + type : '');
+}
+
+/* ---- Handle Spotify OAuth redirect ---- */
+window.addEventListener('load', () => {
+  const hash = window.location.hash;
+  if (hash.includes('access_token')) {
+    const token = new URLSearchParams(hash.slice(1)).get('access_token');
+    if (token) {
+      window.location.hash = '';
+      setTimeout(() => fetchSpotifyWithToken(token), 300);
+    }
+  }
+  setupZoomButtons();
+});
+</script>
+</body>
+</html>
