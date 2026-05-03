@@ -28,7 +28,7 @@ The Music Camera (a.k.a. Music Portrait) is a web application that imagines how 
 
 
 ## 📱 Current status
-Tests on this website has only been done on demo tracks and manually typing in your favourite songs. The Spotify and Youtube Music methods have not been fully tested. Do use them at your own risk.
+Tests on this website have only been done on demo tracks and manually typing in your favourite songs. The Spotify and Youtube Music methods have not been fully tested. Do use them at your own risk.
 
 ## 🤝 Contributing
 Contributions are welcome and appreciated. If you'd like to contribute to the project, please fork the repository, make your changes, and submit a pull request.
